@@ -22,7 +22,7 @@ A freelance web designer in Shoreditch wants local clients, but finding them mea
 | Part | Technology |
 | --- | --- |
 | Web UI + API | Next.js 16 (App Router, route handlers), TypeScript, Tailwind CSS |
-| Design system | [shadcn/ui](https://github.com/shadcn-ui/ui) components + [Magic UI](https://github.com/magicuidesign/magicui) accents (both MIT), lucide icons; light and dark mode |
+| Design | Neo-brutalist theme and components from [neobrutalism-components](https://github.com/ekmas/neobrutalism-components) (MIT), Space Grotesk / Space Mono, lucide icons |
 | Location lookup | Nominatim (OpenStreetMap) |
 | Business data | Geoapify Places API (OpenStreetMap data, free key) first; public Overpass mirrors as fallback |
 | Caching / rate limiting | In-memory (`lib/limits.ts`) |
@@ -35,7 +35,7 @@ A freelance web designer in Shoreditch wants local clients, but finding them mea
 | Folder | What it is |
 | --- | --- |
 | `app/` | The page (`page.tsx`) and API routes (`api/leads`, `api/health`) |
-| `components/` | Lead card plus shadcn/ui and Magic UI components (`components/ui`) |
+| `components/` | Lead card plus neobrutalism UI components (`components/ui`) |
 | `lib/` | Core logic: business→target mapping (`targets.ts`), OSM clients (`osm.ts`), scoring (`leads.ts`), search (`search.ts`), CSV export (`csv.ts`), cache and rate limiting (`limits.ts`) |
 | `tests/` | Unit tests |
 | `.github/workflows/` | CI |

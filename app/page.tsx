@@ -1,29 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import {
-  ArrowRight,
-  Briefcase,
-  Download,
-  LoaderCircle,
-  LocateFixed,
-  MapPin,
-  Radar,
-  Search,
-  ShieldCheck,
-  Target,
-  Zap,
-} from "lucide-react";
+import { ChevronDown, Download, LoaderCircle, LocateFixed, Search } from "lucide-react";
 import type { Lead } from "@/lib/leads";
 import { leadsToCsv } from "@/lib/csv";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DotPattern } from "@/components/ui/dot-pattern";
-import { BlurFade } from "@/components/ui/blur-fade";
 import { LeadCard, LeadCardSkeleton } from "@/components/lead-card";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +19,7 @@ type Result = {
 };
 
 const EXAMPLES = ["Web design agency", "Commercial cleaning", "Bookkeeping & payroll", "IT support", "Coffee bean supplier"];
+const MARQUEE = ["Cafés", "Salons", "Offices", "Clinics", "Pubs", "Gyms", "Hotels", "Shops", "Dentists", "Bakeries", "Florists", "Workshops"];
 const REPO_URL = "https://github.com/Seifeldin-Abdeldaiem/leadscout";
 
 function GitHubIcon({ className }: { className?: string }) {
@@ -113,167 +97,170 @@ export default function Home() {
   }
 
   const shown = result ? result.leads.filter((l) => !onlyNoWebsite || !l.website) : [];
-  const withPhone = result ? result.leads.filter((l) => l.phone).length : 0;
   const showResults = loading || !!result || !!error;
 
   return (
     <div className="flex min-h-full flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-20 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
-          <a href="#" className="flex items-center gap-2 font-semibold">
-            <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Radar className="size-4" aria-hidden />
+      <header className="border-b-2 border-border bg-secondary-background">
+        <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-4">
+          <a href="#" className="flex items-center gap-2.5">
+            <span className="flex size-9 items-center justify-center rounded-base border-2 border-border bg-main text-lg font-bold shadow-[2px_2px_0_0_#000]">
+              L
             </span>
-            LeadScout
+            <span className="text-xl font-heading tracking-tight">LeadScout</span>
           </a>
-          <nav className="flex items-center gap-1 text-sm">
-            <a href="#how" className="hidden rounded-md px-3 py-1.5 text-muted-foreground hover:text-foreground sm:block">
+          <nav className="flex items-center gap-3">
+            <a href="#how" className="hidden font-bold underline-offset-4 hover:underline sm:block">
               How it works
             </a>
-            <Button asChild variant="outline" size="sm">
-              <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
-                <GitHubIcon className="size-3.5" /> Source
-              </a>
-            </Button>
+            <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "neutral", size: "sm" })}>
+              <GitHubIcon /> Source
+            </a>
           </nav>
         </div>
       </header>
 
       <main className="flex-1">
-        {/* Hero + search */}
-        <section className="relative overflow-hidden border-b">
-          <DotPattern
-            className={cn(
-              "text-primary/25 [mask-image:radial-gradient(520px_circle_at_center,white,transparent)]",
-            )}
-          />
-          <div className="relative mx-auto w-full max-w-5xl px-4 pb-14 pt-12 sm:pt-20">
-            <BlurFade delay={0.05} inView>
-              <Badge variant="outline" className="mb-4 gap-1.5 bg-background">
-                <Zap className="size-3 text-primary" aria-hidden /> Free · no sign-up · results in seconds
-              </Badge>
-            </BlurFade>
-            <BlurFade delay={0.1} inView>
-              <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-balance sm:text-5xl">
-                Find your next clients <span className="text-primary">on your doorstep</span>
-              </h1>
-            </BlurFade>
-            <BlurFade delay={0.15} inView>
-              <p className="mt-4 max-w-2xl text-lg text-muted-foreground text-pretty">
-                Tell LeadScout what you sell and where you are. It finds nearby businesses likely to buy from you,
-                ranks them, and hands you their public contact details.
-              </p>
-            </BlurFade>
+        {/* Hero */}
+        <section className="border-b-2 border-border">
+          <div className="mx-auto w-full max-w-5xl px-4 pb-14 pt-12 sm:pt-16">
+            <p className="inline-block rounded-base border-2 border-border bg-accent-pink px-3 py-1 font-mono text-xs font-bold uppercase tracking-wider shadow-[2px_2px_0_0_#000]">
+              Free · No sign-up · Live map data
+            </p>
+            <h1 className="mt-6 max-w-4xl text-5xl leading-[1.02] tracking-tight sm:text-7xl">
+              Find clients on your{" "}
+              <span className="inline-block -rotate-1 rounded-base border-2 border-border bg-main px-3 shadow-shadow">
+                doorstep.
+              </span>
+            </h1>
+            <p className="mt-6 max-w-2xl text-lg sm:text-xl">
+              Say what you sell and where you are. LeadScout finds the local businesses most likely to buy from you,
+              scores them, and gives you their public contact details.
+            </p>
 
-            <BlurFade delay={0.2} inView>
-              <Card className="mt-8 shadow-lg">
-                <CardContent>
-                  <form onSubmit={search} className="grid gap-4 sm:grid-cols-[1.4fr_1.4fr_0.7fr_auto] sm:items-end">
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="business">What does your business do?</Label>
-                      <div className="relative">
-                        <Briefcase className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-                        <Input
-                          id="business"
-                          required
-                          minLength={2}
-                          maxLength={200}
-                          value={business}
-                          onChange={(e) => setBusiness(e.target.value)}
-                          placeholder="e.g. Web design agency"
-                          className="h-10 pl-8"
-                        />
-                      </div>
-                    </div>
+            {/* Search */}
+            <form
+              onSubmit={search}
+              className="mt-10 rounded-base border-2 border-border bg-secondary-background p-5 shadow-lg-hard sm:p-6"
+            >
+              <div className="grid gap-4 sm:grid-cols-[1.3fr_1.3fr_0.6fr]">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="business" className="font-bold">
+                    1. What do you sell?
+                  </Label>
+                  <Input
+                    id="business"
+                    required
+                    minLength={2}
+                    maxLength={200}
+                    value={business}
+                    onChange={(e) => setBusiness(e.target.value)}
+                    placeholder="e.g. Web design agency"
+                    className="h-12 text-base"
+                  />
+                </div>
 
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="location">Where are you?</Label>
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <MapPin className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-                          <Input
-                            id="location"
-                            required
-                            minLength={2}
-                            maxLength={200}
-                            value={location}
-                            onChange={(e) => {
-                              setLocation(e.target.value);
-                              setCoords(null);
-                            }}
-                            placeholder="Town, area or postcode"
-                            className="h-10 pl-8"
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="size-10 shrink-0"
-                          onClick={useMyLocation}
-                          disabled={locating}
-                          title="Use my current location"
-                          aria-label="Use my current location"
-                        >
-                          {locating ? <LoaderCircle className="animate-spin" /> : <LocateFixed />}
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="radius">Radius</Label>
-                      <Select value={radiusKm} onValueChange={setRadiusKm}>
-                        <SelectTrigger id="radius" className="w-full data-[size=default]:h-10">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {["0.5", "1", "2", "3", "5"].map((r) => (
-                            <SelectItem key={r} value={r}>
-                              {r} km
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <Button type="submit" disabled={loading} className="h-10 px-5">
-                      {loading ? <LoaderCircle className="animate-spin" /> : <Search />}
-                      {loading ? "Searching…" : "Find leads"}
+                <div className="grid gap-1.5">
+                  <Label htmlFor="location" className="font-bold">
+                    2. Where are you?
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="location"
+                      required
+                      minLength={2}
+                      maxLength={200}
+                      value={location}
+                      onChange={(e) => {
+                        setLocation(e.target.value);
+                        setCoords(null);
+                      }}
+                      placeholder="Town, area or postcode"
+                      className="h-12 text-base"
+                    />
+                    <Button
+                      type="button"
+                      variant="neutral"
+                      className="size-12 shrink-0 px-0"
+                      onClick={useMyLocation}
+                      disabled={locating}
+                      title="Use my current location"
+                      aria-label="Use my current location"
+                    >
+                      {locating ? <LoaderCircle className="animate-spin" /> : <LocateFixed />}
                     </Button>
-                  </form>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground">Try:</span>
-                    {EXAMPLES.map((ex) => (
-                      <button
-                        key={ex}
-                        type="button"
-                        onClick={() => setBusiness(ex)}
-                        className="rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-                      >
-                        {ex}
-                      </button>
-                    ))}
                   </div>
-                </CardContent>
-              </Card>
-            </BlurFade>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor="radius" className="font-bold">
+                    3. How far?
+                  </Label>
+                  <div className="relative">
+                    <select
+                      id="radius"
+                      value={radiusKm}
+                      onChange={(e) => setRadiusKm(e.target.value)}
+                      className="h-12 w-full appearance-none rounded-base border-2 border-border bg-secondary-background px-3 pr-9 text-base font-bold focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                    >
+                      {["0.5", "1", "2", "3", "5"].map((r) => (
+                        <option key={r} value={r}>
+                          {r} km
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2" aria-hidden />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-col-reverse gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-xs font-bold uppercase">Try →</span>
+                  {EXAMPLES.map((ex) => (
+                    <button
+                      key={ex}
+                      type="button"
+                      onClick={() => setBusiness(ex)}
+                      className="rounded-base border-2 border-border bg-background px-2.5 py-0.5 text-sm font-bold transition-colors hover:bg-main"
+                    >
+                      {ex}
+                    </button>
+                  ))}
+                </div>
+                <Button type="submit" disabled={loading} size="lg" className="h-12 px-8 text-base font-bold">
+                  {loading ? <LoaderCircle className="animate-spin" /> : <Search />}
+                  {loading ? "Searching…" : "Find leads"}
+                </Button>
+              </div>
+            </form>
           </div>
         </section>
 
+        {/* Marquee */}
+        <div className="overflow-hidden border-b-2 border-border bg-foreground py-3 text-background" aria-hidden>
+          <div className="flex w-max animate-marquee gap-8 whitespace-nowrap font-mono text-sm font-bold uppercase tracking-widest">
+            {[...MARQUEE, ...MARQUEE].map((m, i) => (
+              <span key={i} className="flex items-center gap-8">
+                {m} <span className="text-main">✦</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
         {/* Results */}
-        <section ref={resultsRef} className={cn("mx-auto w-full max-w-5xl scroll-mt-16 px-4", showResults && "py-10")}>
+        <section ref={resultsRef} className={cn("mx-auto w-full max-w-5xl scroll-mt-4 px-4", showResults && "py-12")}>
           {error && (
-            <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div role="alert" className="rounded-base border-2 border-border bg-accent-pink px-4 py-3 font-bold shadow-shadow">
               {error}
             </div>
           )}
 
           {loading && (
-            <div className="grid gap-3" aria-busy="true" aria-label="Loading leads">
-              <p className="text-sm text-muted-foreground">Scanning local businesses…</p>
-              {Array.from({ length: 4 }).map((_, i) => (
+            <div className="grid gap-4" aria-busy="true" aria-label="Loading leads">
+              <p className="font-mono text-sm font-bold uppercase">Scanning local businesses…</p>
+              {Array.from({ length: 3 }).map((_, i) => (
                 <LeadCardSkeleton key={i} />
               ))}
             </div>
@@ -281,130 +268,134 @@ export default function Home() {
 
           {result && (
             <>
-              <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+              <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-semibold tracking-tight">
+                  <h2 className="text-3xl tracking-tight sm:text-4xl">
                     {result.leads.length} leads within {result.radiusKm} km
                   </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Near {result.place.label.split(",").slice(0, 3).join(",")} · matched as{" "}
-                    <span className="font-medium text-foreground">{result.profile.label}</span>: {result.profile.pitch}
+                  <p className="mt-2">
+                    Near <b>{result.place.label.split(",").slice(0, 2).join(",")}</b> · matched as{" "}
+                    <span className="rounded-base border-2 border-border bg-main px-1.5 font-bold">{result.profile.label}</span>
                   </p>
                   {result.requestedRadiusKm && (
-                    <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
-                      The map servers were too busy for a {result.requestedRadiusKm} km search, so these results cover{" "}
-                      {result.radiusKm} km. Try the bigger radius again in a few minutes.
+                    <p className="mt-2 text-sm font-bold">
+                      ⚠ The map servers were too busy for a {result.requestedRadiusKm} km search, so these results cover{" "}
+                      {result.radiusKm} km.
                     </p>
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   {result.profile.id === "web" && (
-                    <label className="flex items-center gap-2 text-sm">
+                    <label className="flex cursor-pointer items-center gap-2 font-bold">
                       <input
                         type="checkbox"
-                        className="size-4 accent-[var(--primary)]"
+                        className="size-5 accent-black"
                         checked={onlyNoWebsite}
                         onChange={(e) => setOnlyNoWebsite(e.target.checked)}
                       />
-                      Only without a website
+                      No website only
                     </label>
                   )}
-                  <Button variant="outline" onClick={() => downloadCsv(shown)} disabled={!shown.length}>
+                  <Button variant="neutral" onClick={() => downloadCsv(shown)} disabled={!shown.length}>
                     <Download /> Export CSV
                   </Button>
                 </div>
               </div>
 
               {result.leads.length > 0 && (
-                <div className="mb-5 grid grid-cols-3 gap-3">
+                <div className="mb-8 grid grid-cols-3 gap-3 sm:gap-4">
                   {[
-                    { label: "Leads found", value: result.leads.length },
-                    { label: "With a phone number", value: withPhone },
-                    { label: "Top score", value: Math.max(...result.leads.map((l) => l.score)) },
+                    { label: "Leads found", value: result.leads.length, bg: "bg-accent-green" },
+                    { label: "With phone", value: result.leads.filter((l) => l.phone).length, bg: "bg-accent-blue" },
+                    { label: "Top score", value: Math.max(...result.leads.map((l) => l.score)), bg: "bg-accent-pink" },
                   ].map((s) => (
-                    <Card key={s.label} className="gap-1 px-4 py-3">
-                      <span className="text-2xl font-semibold tabular-nums">{s.value}</span>
-                      <span className="text-xs text-muted-foreground">{s.label}</span>
-                    </Card>
+                    <div key={s.label} className={cn("rounded-base border-2 border-border p-3 shadow-shadow sm:p-4", s.bg)}>
+                      <div className="font-mono text-3xl font-bold tabular-nums sm:text-4xl">{s.value}</div>
+                      <div className="text-xs font-bold uppercase sm:text-sm">{s.label}</div>
+                    </div>
                   ))}
                 </div>
               )}
 
               {shown.length === 0 ? (
-                <p className="text-muted-foreground">
-                  No matching businesses found. Try a bigger radius or a nearby town centre.
-                </p>
+                <p className="font-bold">No matching businesses found. Try a bigger radius or a nearby town centre.</p>
               ) : (
-                <ul className="grid gap-3">
+                <ol className="grid gap-4">
                   {shown.map((l, i) => (
                     <li key={l.id}>
-                      <BlurFade delay={Math.min(i, 8) * 0.03} inView>
-                        <LeadCard lead={l} />
-                      </BlurFade>
+                      <LeadCard lead={l} rank={i + 1} />
                     </li>
                   ))}
-                </ul>
+                </ol>
               )}
             </>
           )}
         </section>
 
         {/* How it works */}
-        <section id="how" className="border-t bg-muted/40">
-          <div className="mx-auto w-full max-w-5xl px-4 py-14">
-            <h2 className="text-2xl font-semibold tracking-tight">How it works</h2>
-            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <section id="how" className="border-t-2 border-border bg-secondary-background">
+          <div className="mx-auto w-full max-w-5xl px-4 py-16">
+            <h2 className="text-4xl tracking-tight">How it works</h2>
+            <div className="mt-8 grid gap-5 sm:grid-cols-3">
               {[
                 {
-                  icon: Target,
-                  title: "Understands who buys from you",
-                  body: "Describe your business in plain English. LeadScout maps it to the kinds of local businesses that typically need it — cafés for a web designer, offices for a cleaner.",
+                  n: "01",
+                  bg: "bg-main",
+                  title: "Understands your buyers",
+                  body: "Describe your business in plain English. LeadScout maps it to the local businesses that typically need it: cafés for a web designer, offices for a cleaner.",
                 },
                 {
-                  icon: Radar,
-                  title: "Scans the map around you",
-                  body: "It searches OpenStreetMap business listings within your radius and pulls each one's public phone, email and website.",
+                  n: "02",
+                  bg: "bg-accent-green",
+                  title: "Scans the map",
+                  body: "It searches OpenStreetMap business listings inside your radius and pulls each one's public phone, email and website.",
                 },
                 {
-                  icon: ArrowRight,
-                  title: "Ranks the best prospects",
-                  body: "Every lead gets a 0–100 score from distance, contact details and buying signals — like a café with no website — with the reasons shown.",
+                  n: "03",
+                  bg: "bg-accent-pink",
+                  title: "Ranks the prospects",
+                  body: "Each lead gets a 0–100 score from distance, contact details and buying signals, like a café with no website, with the reasons shown.",
                 },
               ].map((step) => (
-                <Card key={step.title} className="px-5">
-                  <step.icon className="size-5 text-primary" aria-hidden />
-                  <h3 className="font-semibold">{step.title}</h3>
-                  <p className="text-sm text-muted-foreground">{step.body}</p>
-                </Card>
+                <div key={step.n} className="rounded-base border-2 border-border bg-background p-5 shadow-shadow">
+                  <span className={cn("inline-block rounded-base border-2 border-border px-2 font-mono text-lg font-bold", step.bg)}>
+                    {step.n}
+                  </span>
+                  <h3 className="mt-4 text-xl">{step.title}</h3>
+                  <p className="mt-2">{step.body}</p>
+                </div>
               ))}
             </div>
-            <p className="mt-6 flex items-start gap-2 text-sm text-muted-foreground">
-              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-              Your searches aren&apos;t stored. Listings are public business information — follow your local marketing
+            <p className="mt-8 max-w-3xl text-sm">
+              Your searches aren&apos;t stored. Listings are public business information; follow your local marketing
               rules (e.g. UK PECR / GDPR) before contacting anyone.
             </p>
           </div>
         </section>
       </main>
 
-      <footer className="border-t">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+      <footer className="border-t-2 border-border bg-foreground text-background">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-6 text-sm sm:flex-row sm:items-center sm:justify-between">
           <p>
-            Built by Seifeldin Abdeldaiem ·{" "}
-            <a className="underline underline-offset-2 hover:text-foreground" href={REPO_URL} target="_blank" rel="noopener noreferrer">
+            Built by <b>Seifeldin Abdeldaiem</b> ·{" "}
+            <a className="underline underline-offset-2 hover:text-main" href={REPO_URL} target="_blank" rel="noopener noreferrer">
               source on GitHub
             </a>
           </p>
-          <p>
-            Business data ©{" "}
-            <a className="underline underline-offset-2 hover:text-foreground" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">
-              OpenStreetMap contributors
+          <p className="text-background/70">
+            Data ©{" "}
+            <a className="underline underline-offset-2 hover:text-main" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">
+              OpenStreetMap
             </a>{" "}
-            (ODbL), via{" "}
-            <a className="underline underline-offset-2 hover:text-foreground" href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">
+            via{" "}
+            <a className="underline underline-offset-2 hover:text-main" href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">
               Geoapify
-            </a>{" "}
-            and the Overpass API.
+            </a>
+            . Design based on{" "}
+            <a className="underline underline-offset-2 hover:text-main" href="https://github.com/ekmas/neobrutalism-components" target="_blank" rel="noopener noreferrer">
+              neobrutalism-components
+            </a>
+            .
           </p>
         </div>
       </footer>
