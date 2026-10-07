@@ -1,0 +1,20 @@
+# LeadScout on Render. One free web service, no database, no secrets.
+# Free-tier compromises are marked FREE-TIER — see https://render.com/docs/free
+services:
+  - type: web
+    name: leadscout-k7q2        # globally unique so the URL is predictable
+    runtime: node
+    plan: free                  # FREE-TIER: sleeps after 15 min idle (~1 min cold start); 750 instance hours/month
+    region: frankfurt
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: APP_URL
+        value: https://leadscout-k7q2.onrender.com
+      - key: SEARCHES_PER_MINUTE
+        value: "8"
+      # FREE-TIER: caches and rate limits live in memory, so they reset when the
+      # service sleeps and aren't shared across instances. Fine for one instance.
