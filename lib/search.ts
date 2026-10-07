@@ -15,9 +15,14 @@ export type SearchResult = {
   place: Place;
   profile: { id: string; label: string; pitch: string };
   radiusKm: number;
+  /** Set when the map servers were too busy for the requested radius and a smaller one was used. */
+  requestedRadiusKm?: number;
   leads: Lead[];
   cached: boolean;
 };
+
+/** Radius used for the automatic retry when a bigger search can't be served. */
+export const FALLBACK_RADIUS_KM = 1;
 
 export class InputError extends Error {}
 
@@ -75,20 +80,35 @@ export async function searchLeads(input: SearchInput, deps: Deps = realDeps): Pr
   }
 
   const profile = matchProfile(input.business);
-  const radiusM = input.radiusKm * 1000;
-  const osmKey = `${profile.id}|${place.lat.toFixed(3)}|${place.lon.toFixed(3)}|${radiusM}`;
-  let elements = osmCache.get(osmKey);
-  const cached = elements !== undefined;
-  if (!elements) {
-    elements = await deps.runOverpass(buildOverpassQuery(profile.targets, place.lat, place.lon, radiusM));
-    osmCache.set(osmKey, elements);
+  const fetchFor = async (radiusKm: number) => {
+    const radiusM = radiusKm * 1000;
+    const key = `${profile.id}|${place!.lat.toFixed(3)}|${place!.lon.toFixed(3)}|${radiusM}`;
+    const hit = osmCache.get(key);
+    if (hit) return { elements: hit, cached: true };
+    const elements = await deps.runOverpass(buildOverpassQuery(profile.targets, place!.lat, place!.lon, radiusM));
+    osmCache.set(key, elements);
+    return { elements, cached: false };
+  };
+
+  let radiusKm = input.radiusKm;
+  let requestedRadiusKm: number | undefined;
+  let got: { elements: OsmElement[]; cached: boolean };
+  try {
+    got = await fetchFor(radiusKm);
+  } catch (e) {
+    // Big searches are the ones busy servers drop; retry once at a lighter radius.
+    if (radiusKm <= FALLBACK_RADIUS_KM) throw e;
+    requestedRadiusKm = radiusKm;
+    radiusKm = FALLBACK_RADIUS_KM;
+    got = await fetchFor(radiusKm);
   }
 
   return {
     place,
     profile: { id: profile.id, label: profile.label, pitch: profile.pitch },
-    radiusKm: input.radiusKm,
-    leads: rankLeads(elements, place, radiusM, profile),
-    cached,
+    radiusKm,
+    requestedRadiusKm,
+    leads: rankLeads(got.elements, place, radiusKm * 1000, profile),
+    cached: got.cached,
   };
 }

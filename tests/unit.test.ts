@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { matchProfile, DEFAULT_PROFILE, PROFILES } from "@/lib/targets";
-import { buildOverpassQuery, runOverpass, type OsmElement } from "@/lib/osm";
+import { buildOverpassQuery, overpassEndpoints, resetMirrorCooldowns, runOverpass, type OsmElement } from "@/lib/osm";
 import { cleanWebsite, rankLeads, toLead, haversineM } from "@/lib/leads";
 import { csvCell, leadsToCsv } from "@/lib/csv";
 import { RateLimiter, TtlCache } from "@/lib/limits";
@@ -49,6 +49,22 @@ describe("buildOverpassQuery", () => {
 });
 
 describe("runOverpass failover", () => {
+  beforeEach(() => resetMirrorCooldowns());
+
+  it("rests a mirror that answered 429 and skips it next time", async () => {
+    const first = overpassEndpoints()[0];
+    const seen: string[] = [];
+    const fake = (async (url: string) => {
+      seen.push(url);
+      if (url === first) return new Response("slow down", { status: 429 });
+      return new Response(JSON.stringify({ elements: [{ type: "node", id: 1 }] }));
+    }) as unknown as typeof fetch;
+    await runOverpass("q", fake, 10_000);
+    seen.length = 0;
+    await runOverpass("q", fake, 10_000);
+    expect(seen).not.toContain(first);
+  });
+
   it("tries the next mirror when one fails", async () => {
     const calls: string[] = [];
     const fake = (async (url: string) => {
@@ -211,6 +227,26 @@ describe("searchLeads (stubbed network)", () => {
     );
     expect(result.profile.id).toBe("web");
     expect(result.leads[0].name).toBe("Corner Cafe");
+  });
+
+  it("falls back to a 1 km search when the big one fails", async () => {
+    const radii: string[] = [];
+    const result = await searchLeads(
+      { business: "web design", location: "Bigcity", radiusKm: 5 },
+      {
+        geocode: async () => ({ lat: 52.1, lon: 0.1, label: "Bigcity" }),
+        reverseGeocode: async () => "x",
+        runOverpass: async (q) => {
+          radii.push(q.match(/bbox:([^\]]+)/)![1]);
+          if (radii.length === 1) throw new Error("All map data servers failed");
+          return [{ type: "node", id: 9, lat: 52.1001, lon: 0.1001, tags: { name: "Near Cafe", amenity: "cafe" } }];
+        },
+      },
+    );
+    expect(radii).toHaveLength(2);
+    expect(result.radiusKm).toBe(1);
+    expect(result.requestedRadiusKm).toBe(5);
+    expect(result.leads[0].name).toBe("Near Cafe");
   });
 
   it("reports an unknown place as a user error", async () => {

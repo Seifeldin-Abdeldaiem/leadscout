@@ -2,11 +2,21 @@ import type { TagFilter } from "./targets";
 
 export const USER_AGENT = `LeadScout/1.0 (+${process.env.APP_URL || "https://github.com/leadscout"})`;
 
+// Order matters: the main instance (overpass-api.de) is the most overloaded and
+// rate-limits cloud hosts, so the no-limit community mirrors go first.
 const DEFAULT_OVERPASS = [
-  "https://overpass-api.de/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+  "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
 ];
+
+/** Mirrors that recently refused us (429 / connection errors) are rested before reuse. */
+const COOLDOWN_MS = 60_000;
+const coolingUntil = new Map<string, number>();
+export function resetMirrorCooldowns() {
+  coolingUntil.clear();
+}
 
 export function overpassEndpoints(): string[] {
   const fromEnv = (process.env.OVERPASS_URLS || "")
@@ -63,7 +73,7 @@ export type OsmElement = {
 
 /** How long to wait for a mirror before also asking the next one. */
 export const HEDGE_DELAY_MS = 6_000;
-const PER_REQUEST_TIMEOUT_MS = 45_000;
+const PER_REQUEST_TIMEOUT_MS = 30_000;
 
 /**
  * Ask the Overpass mirrors for the data, "hedged": start with the first mirror,
@@ -77,7 +87,10 @@ export async function runOverpass(
   fetchImpl: typeof fetch = fetch,
   hedgeDelayMs = HEDGE_DELAY_MS,
 ): Promise<OsmElement[]> {
-  const urls = overpassEndpoints();
+  const now = Date.now();
+  const all = overpassEndpoints();
+  const fresh = all.filter((u) => (coolingUntil.get(u) ?? 0) <= now);
+  const urls = fresh.length ? fresh : all; // if every mirror is resting, try them anyway
   const controllers = urls.map(() => new AbortController());
   const errors: string[] = [];
 
@@ -111,14 +124,21 @@ export async function runOverpass(
         signal: controllers[i].signal,
       })
         .then(async (res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          if (!res.ok) {
+            // 429 = rate limited: the operator asks clients to back off (at least 30 s)
+            if (res.status === 429) coolingUntil.set(url, Date.now() + COOLDOWN_MS);
+            throw new Error(`HTTP ${res.status}`);
+          }
           const json = (await res.json()) as { elements?: OsmElement[]; remark?: string };
           // Overpass reports server-side timeouts as 200 + "remark" with no elements.
           if (!json.elements?.length && json.remark) throw new Error(`remark: ${json.remark.slice(0, 80)}`);
           finish(true, json.elements ?? []);
         })
-        .catch((e: Error) => {
-          errors.push(`${host}: ${e.message || e.name}`);
+        .catch((e: Error & { cause?: { code?: string } }) => {
+          if (settled) return;
+          const detail = e.cause?.code ? `${e.message} (${e.cause.code})` : e.message || e.name;
+          if (e.name === "TypeError") coolingUntil.set(url, Date.now() + COOLDOWN_MS); // connection refused/reset
+          errors.push(`${host}: ${detail}`);
           finished++;
           if (finished >= urls.length) {
             finish(false, new Error(`All map data servers failed (${errors.join("; ")})`));

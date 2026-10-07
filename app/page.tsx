@@ -8,6 +8,7 @@ type Result = {
   place: { lat: number; lon: number; label: string };
   profile: { id: string; label: string; pitch: string };
   radiusKm: number;
+  requestedRadiusKm?: number;
   leads: Lead[];
 };
 
@@ -190,6 +191,11 @@ export default function Home() {
               <h2 className="text-xl font-semibold">
                 {result.leads.length} leads within {result.radiusKm} km
               </h2>
+              {result.requestedRadiusKm && (
+                <p className="mb-1 text-sm text-amber-700 dark:text-amber-400">
+                  The map servers were too busy for a {result.requestedRadiusKm} km search, so these results cover {result.radiusKm} km. Try the bigger radius again in a few minutes.
+                </p>
+              )}
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
                 Near {result.place.label.split(",").slice(0, 3).join(",")} · matched as <b>{result.profile.label}</b>: {result.profile.pitch}
               </p>
