@@ -2,7 +2,7 @@ import { buildOverpassQuery, geocode, reverseGeocode, runOverpass, type OsmEleme
 import { rankLeads, type Lead } from "./leads";
 import { matchProfile, type Profile } from "./targets";
 import { TtlCache } from "./limits";
-import { runGeoapify } from "./geoapify";
+import { geoapifyGeocode, geoapifyReverse, runGeoapify } from "./geoapify";
 
 export type SearchInput = {
   business: string;
@@ -64,9 +64,19 @@ export type Deps = {
   runGeoapify?: (filters: Profile["targets"], lat: number, lon: number, radiusM: number) => Promise<OsmElement[]>;
 };
 const geoKey = process.env.GEOAPIFY_API_KEY?.trim();
+/** Geoapify first (Nominatim rate-limits shared cloud IPs like Render's), Nominatim as fallback. */
 const realDeps: Deps = {
-  geocode,
-  reverseGeocode,
+  geocode: geoKey
+    ? async (q) => {
+        try {
+          return await geoapifyGeocode(q, geoKey);
+        } catch (e) {
+          console.error(JSON.stringify({ evt: "geoapify_geocode_error", err: (e as Error).message.slice(0, 120) }));
+          return geocode(q);
+        }
+      }
+    : geocode,
+  reverseGeocode: geoKey ? (lat, lon) => geoapifyReverse(lat, lon, geoKey) : reverseGeocode,
   runOverpass,
   runGeoapify: geoKey ? (f, lat, lon, r) => runGeoapify(f, lat, lon, r, geoKey) : undefined,
 };

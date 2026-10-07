@@ -5,7 +5,7 @@ import { cleanWebsite, rankLeads, toLead, haversineM } from "@/lib/leads";
 import { csvCell, leadsToCsv } from "@/lib/csv";
 import { RateLimiter, TtlCache } from "@/lib/limits";
 import { InputError, parseInput, searchLeads } from "@/lib/search";
-import { featureToElement, geoapifyCategories, runGeoapify } from "@/lib/geoapify";
+import { featureToElement, geoapifyCategories, geoapifyGeocode, geoapifyReverse, runGeoapify } from "@/lib/geoapify";
 
 const web = PROFILES.find((p) => p.id === "web")!;
 const origin = { lat: 51.5245, lon: -0.078 };
@@ -286,6 +286,23 @@ describe("geoapify", () => {
     expect(el.tags).toMatchObject({ amenity: "clothing", website: "shopx.example", phone: "+44 2" });
     const lead = toLead(el, { lat: 51.5, lon: -0.1 }, 1000, web)!;
     expect(lead.osmUrl).toContain("mlat=51.5");
+  });
+
+  it("geocodes a place via Geoapify", async () => {
+    let called = "";
+    const fake = (async (url: string) => {
+      called = url;
+      return new Response(JSON.stringify({ results: [{ lat: 53.48, lon: -2.24, formatted: "Manchester, England" }] }));
+    }) as unknown as typeof fetch;
+    expect(await geoapifyGeocode("Manchester", "k", fake)).toEqual({ lat: 53.48, lon: -2.24, label: "Manchester, England" });
+    expect(called).toContain("/v1/geocode/search");
+    const none = (async () => new Response(JSON.stringify({ results: [] }))) as unknown as typeof fetch;
+    expect(await geoapifyGeocode("zzz", "k", none)).toBeNull();
+  });
+
+  it("reverse geocoding falls back to coordinates on errors", async () => {
+    const bad = (async () => new Response("x", { status: 500 })) as unknown as typeof fetch;
+    expect(await geoapifyReverse(51.5, -0.1, "k", bad)).toBe("51.5000, -0.1000");
   });
 
   it("handles businesses whose name is a number", () => {

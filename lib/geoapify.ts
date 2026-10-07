@@ -124,3 +124,38 @@ export async function runGeoapify(
     .map((f, i) => featureToElement(f, i))
     .filter((e): e is OsmElement => e !== null);
 }
+
+type GeoResult = { lat: number; lon: number; formatted?: string };
+
+/** Forward geocoding via Geoapify (used instead of Nominatim when a key is set). */
+export async function geoapifyGeocode(
+  text: string,
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ lat: number; lon: number; label: string } | null> {
+  const url = `https://api.geoapify.com/v1/geocode/search?${new URLSearchParams({ text, limit: "1", format: "json", lang: "en", apiKey })}`;
+  const res = await fetchImpl(url, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) throw new Error(`Geoapify geocode HTTP ${res.status}`);
+  const json = (await res.json()) as { results?: GeoResult[] };
+  const r = json.results?.[0];
+  if (!r || !Number.isFinite(r.lat) || !Number.isFinite(r.lon)) return null;
+  return { lat: r.lat, lon: r.lon, label: r.formatted || text };
+}
+
+/** Reverse geocoding via Geoapify; falls back to coordinates on any problem. */
+export async function geoapifyReverse(
+  lat: number,
+  lon: number,
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string> {
+  try {
+    const url = `https://api.geoapify.com/v1/geocode/reverse?${new URLSearchParams({ lat: String(lat), lon: String(lon), format: "json", lang: "en", apiKey })}`;
+    const res = await fetchImpl(url, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw new Error(String(res.status));
+    const json = (await res.json()) as { results?: GeoResult[] };
+    return json.results?.[0]?.formatted || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  } catch {
+    return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  }
+}
