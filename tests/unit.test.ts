@@ -34,10 +34,11 @@ describe("matchProfile", () => {
 });
 
 describe("buildOverpassQuery", () => {
-  it("builds a union around the point, named places only", () => {
+  it("builds a bounding-box union of named nodes and ways", () => {
     const q = buildOverpassQuery([{ key: "shop" }, { key: "amenity", values: ["cafe", "pub"] }], 51.5, -0.1, 2000);
-    expect(q).toContain('nwr["shop"]["name"](around:2000,51.500000,-0.100000);');
-    expect(q).toContain('nwr["amenity"~"^(cafe|pub)$"]["name"]');
+    expect(q).toMatch(/\[bbox:51\.48203,-0\.128\d\d,51\.51797,-0\.071\d\d\]/);
+    expect(q).toContain('nw["shop"]["name"];');
+    expect(q).toContain('nw["amenity"~"^(cafe|pub)$"]["name"];');
     expect(q).toMatch(/out center tags \d+;$/);
   });
 
@@ -55,9 +56,41 @@ describe("runOverpass failover", () => {
       if (calls.length === 1) throw new TypeError("network");
       return new Response(JSON.stringify({ elements: [{ type: "node", id: 1 }] }));
     }) as unknown as typeof fetch;
-    const out = await runOverpass("q", fake);
+    const out = await runOverpass("q", fake, 10_000);
     expect(out).toHaveLength(1);
+    expect(calls).toHaveLength(2); // the failure started the next mirror immediately
+  });
+
+  it("asks a second mirror when the first is slow, and the fastest wins", async () => {
+    const calls: string[] = [];
+    const fake = ((url: string, init: RequestInit) => {
+      calls.push(url);
+      const slow = calls.length === 1;
+      return new Promise<Response>((resolve, reject) => {
+        const t = setTimeout(
+          () => resolve(new Response(JSON.stringify({ elements: [{ type: "node", id: slow ? 1 : 2 }] }))),
+          slow ? 500 : 10,
+        );
+        init.signal?.addEventListener("abort", () => {
+          clearTimeout(t);
+          reject(new DOMException("aborted", "AbortError"));
+        });
+      });
+    }) as unknown as typeof fetch;
+    const out = await runOverpass("q", fake, 20);
+    expect(out[0].id).toBe(2);
     expect(calls).toHaveLength(2);
+  });
+
+  it("treats an Overpass timeout remark as a failure", async () => {
+    let n = 0;
+    const fake = (async () => {
+      n++;
+      return n === 1
+        ? new Response(JSON.stringify({ elements: [], remark: "runtime error: Query timed out" }))
+        : new Response(JSON.stringify({ elements: [{ type: "node", id: 3 }] }));
+    }) as unknown as typeof fetch;
+    expect((await runOverpass("q", fake, 10_000))[0].id).toBe(3);
   });
 
   it("throws when every mirror fails", async () => {
@@ -106,6 +139,11 @@ describe("leads", () => {
     const leads = rankLeads([chain, cafeNoSite], origin, 2000, web);
     expect(leads[0].name).toBe("Bean There");
     expect(leads[1].reasons.join(" ")).toMatch(/chain/);
+  });
+
+  it("drops places outside the radius (bounding-box corners)", () => {
+    const far: OsmElement = { type: "node", id: 8, lat: 51.54, lon: -0.04, tags: { name: "Far Cafe", amenity: "cafe" } };
+    expect(toLead(far, origin, 2000, web)).toBeNull();
   });
 
   it("haversine is sane", () => {
@@ -166,7 +204,7 @@ describe("searchLeads (stubbed network)", () => {
         geocode: async () => ({ ...origin, label: "Testville, UK" }),
         reverseGeocode: async () => "x",
         runOverpass: async (q) => {
-          expect(q).toContain("around:1000");
+          expect(q).toContain("[bbox:");
           return [{ type: "node", id: 7, lat: 51.5246, lon: -0.0781, tags: { name: "Corner Cafe", amenity: "cafe" } }];
         },
       },

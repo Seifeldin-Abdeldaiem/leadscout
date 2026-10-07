@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     if (e instanceof InputError) return Response.json({ error: e.message }, { status: 400 });
     console.error(JSON.stringify({ evt: "search_error", err: (e as Error).message.slice(0, 200), ms: Date.now() - started }));
     return Response.json(
-      { error: "The map data service is busy. Please try again in a moment." },
+      { error: "The free map data servers are busy right now. Please try again in a minute, or use a smaller search radius." },
       { status: 503 },
     );
   }

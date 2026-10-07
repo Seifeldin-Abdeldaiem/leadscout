@@ -19,6 +19,18 @@ export function overpassEndpoints(): string[] {
 /** Only allow tag keys/values made of safe characters, so user input can never reach the query. */
 const SAFE = /^[a-z0-9_:]+$/;
 
+/** Bounding box (south,west,north,east) that contains a circle of radiusM around the point. */
+export function bboxAround(lat: number, lon: number, radiusM: number): string {
+  const dLat = radiusM / 111_320;
+  const dLon = radiusM / (111_320 * Math.max(0.01, Math.cos((lat * Math.PI) / 180)));
+  return [lat - dLat, lon - dLon, lat + dLat, lon + dLon].map((n) => n.toFixed(5)).join(",");
+}
+
+/**
+ * Build the Overpass query. Uses a bounding box (index-backed, several times
+ * faster than `around:` on busy city centres) and nodes + ways only; results
+ * outside the radius are dropped later when leads are ranked.
+ */
 export function buildOverpassQuery(
   filters: TagFilter[],
   lat: number,
@@ -29,15 +41,15 @@ export function buildOverpassQuery(
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(radiusM)) {
     throw new Error("invalid coordinates");
   }
-  const around = `(around:${Math.round(radiusM)},${lat.toFixed(6)},${lon.toFixed(6)})`;
+  const bbox = bboxAround(lat, lon, radiusM);
   const parts = filters.map((f) => {
     if (!SAFE.test(f.key) || (f.values && !f.values.every((v) => SAFE.test(v)))) {
       throw new Error(`unsafe tag filter: ${f.key}`);
     }
     const tag = f.values ? `["${f.key}"~"^(${f.values.join("|")})$"]` : `["${f.key}"]`;
-    return `  nwr${tag}["name"]${around};`;
+    return `  nw${tag}["name"];`;
   });
-  return `[out:json][timeout:25];\n(\n${parts.join("\n")}\n);\nout center tags ${limit};`;
+  return `[out:json][timeout:40][bbox:${bbox}];\n(\n${parts.join("\n")}\n);\nout center tags ${limit};`;
 }
 
 export type OsmElement = {
@@ -49,34 +61,76 @@ export type OsmElement = {
   tags?: Record<string, string>;
 };
 
-/** Run a query against each Overpass mirror in turn until one answers. */
+/** How long to wait for a mirror before also asking the next one. */
+export const HEDGE_DELAY_MS = 6_000;
+const PER_REQUEST_TIMEOUT_MS = 45_000;
+
+/**
+ * Ask the Overpass mirrors for the data, "hedged": start with the first mirror,
+ * and if it hasn't answered within HEDGE_DELAY_MS (or fails sooner), also ask the
+ * next one. The first good answer wins and the others are cancelled. Public
+ * mirrors are often overloaded, so this keeps searches fast without hammering
+ * every server on every request.
+ */
 export async function runOverpass(
   query: string,
   fetchImpl: typeof fetch = fetch,
+  hedgeDelayMs = HEDGE_DELAY_MS,
 ): Promise<OsmElement[]> {
+  const urls = overpassEndpoints();
+  const controllers = urls.map(() => new AbortController());
   const errors: string[] = [];
-  for (const url of overpassEndpoints()) {
-    try {
-      const res = await fetchImpl(url, {
+
+  return new Promise<OsmElement[]>((resolve, reject) => {
+    let settled = false;
+    let started = 0;
+    let finished = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const finish = (ok: boolean, value: OsmElement[] | Error) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      controllers.forEach((c) => c.abort());
+      if (ok) resolve(value as OsmElement[]);
+      else reject(value);
+    };
+
+    const startNext = () => {
+      if (settled || started >= urls.length) return;
+      const i = started++;
+      if (timer) clearTimeout(timer);
+      if (started < urls.length) timer = setTimeout(startNext, hedgeDelayMs);
+      const url = urls[i];
+      const host = new URL(url).host;
+      const timeout = setTimeout(() => controllers[i].abort(), PER_REQUEST_TIMEOUT_MS);
+      fetchImpl(url, {
         method: "POST",
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          "user-agent": USER_AGENT,
-        },
+        headers: { "content-type": "application/x-www-form-urlencoded", "user-agent": USER_AGENT },
         body: new URLSearchParams({ data: query }).toString(),
-        signal: AbortSignal.timeout(30_000),
-      });
-      if (!res.ok) {
-        errors.push(`${new URL(url).host}: HTTP ${res.status}`);
-        continue;
-      }
-      const json = (await res.json()) as { elements?: OsmElement[] };
-      return json.elements ?? [];
-    } catch (e) {
-      errors.push(`${new URL(url).host}: ${(e as Error).name}`);
-    }
-  }
-  throw new Error(`All map data servers failed (${errors.join("; ")})`);
+        signal: controllers[i].signal,
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const json = (await res.json()) as { elements?: OsmElement[]; remark?: string };
+          // Overpass reports server-side timeouts as 200 + "remark" with no elements.
+          if (!json.elements?.length && json.remark) throw new Error(`remark: ${json.remark.slice(0, 80)}`);
+          finish(true, json.elements ?? []);
+        })
+        .catch((e: Error) => {
+          errors.push(`${host}: ${e.message || e.name}`);
+          finished++;
+          if (finished >= urls.length) {
+            finish(false, new Error(`All map data servers failed (${errors.join("; ")})`));
+          } else {
+            startNext(); // fail fast: don't wait for the hedge timer
+          }
+        })
+        .finally(() => clearTimeout(timeout));
+    };
+
+    startNext();
+  });
 }
 
 export type Place = { lat: number; lon: number; label: string };

@@ -72,6 +72,8 @@ export function toLead(
   const email = t.email || t["contact:email"];
   const website = cleanWebsite(t.website || t["contact:website"] || t.url);
   const distanceM = Math.round(haversineM(origin.lat, origin.lon, lat, lon));
+  // the query uses a bounding box, so drop the corners outside the circle
+  if (distanceM > radiusM) return null;
 
   let score = 40;
   const reasons: string[] = [];
