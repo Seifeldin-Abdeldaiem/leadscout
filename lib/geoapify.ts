@@ -47,7 +47,7 @@ export function geoapifyCategories(filters: TagFilter[]): string[] {
 
 type GeoFeature = {
   properties: {
-    name?: string;
+    name?: string | number;
     lat: number;
     lon: number;
     place_id?: string;
@@ -70,11 +70,11 @@ const OSM_TYPES: Record<string, OsmElement["type"]> = { n: "node", w: "way", r: 
 /** Convert a Geoapify feature into the OSM-shaped element the ranking code expects. */
 export function featureToElement(f: GeoFeature, index: number): OsmElement | null {
   const p = f.properties;
-  if (!p?.name || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) return null;
+  if (p?.name == null || p.name === "" || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) return null;
   const raw = p.datasource?.raw ?? {};
   const tags: Record<string, string> = {};
-  for (const [k, v] of Object.entries(raw)) if (typeof v === "string") tags[k] = v;
-  tags.name = p.name;
+  for (const [k, v] of Object.entries(raw)) if (typeof v === "string" || typeof v === "number") tags[k] = String(v);
+  tags.name = String(p.name); // Geoapify returns numeric names (e.g. "1761") as numbers
   if (p.website && !tags.website) tags.website = p.website;
   if (p.contact?.phone && !tags.phone) tags.phone = p.contact.phone;
   if (p.contact?.email && !tags.email) tags.email = p.contact.email;

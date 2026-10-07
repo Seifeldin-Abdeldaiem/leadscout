@@ -108,7 +108,7 @@ export function toLead(
 
   return {
     id: `${el.type}/${el.id}`,
-    name: t.name,
+    name: String(t.name),
     category: categoryOf(t),
     address: addressOf(t),
     phone,

@@ -288,6 +288,13 @@ describe("geoapify", () => {
     expect(lead.osmUrl).toContain("mlat=51.5");
   });
 
+  it("handles businesses whose name is a number", () => {
+    const el = featureToElement({ properties: { name: 1761 as unknown as string, lat: 51.5246, lon: -0.0781, datasource: { raw: { amenity: "bar", name: 1761 } } } }, 0)!;
+    expect(el.tags?.name).toBe("1761");
+    const leads = rankLeads([el], { lat: 51.5246, lon: -0.0781 }, 1000, web);
+    expect(leads[0].name).toBe("1761");
+  });
+
   it("calls the Places API with a circle filter and parses features", async () => {
     let called = "";
     const fake = (async (url: string) => {
