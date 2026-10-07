@@ -5,6 +5,7 @@ import { cleanWebsite, rankLeads, toLead, haversineM } from "@/lib/leads";
 import { csvCell, leadsToCsv } from "@/lib/csv";
 import { RateLimiter, TtlCache } from "@/lib/limits";
 import { InputError, parseInput, searchLeads } from "@/lib/search";
+import { featureToElement, geoapifyCategories, runGeoapify } from "@/lib/geoapify";
 
 const web = PROFILES.find((p) => p.id === "web")!;
 const origin = { lat: 51.5245, lon: -0.078 };
@@ -256,5 +257,64 @@ describe("searchLeads (stubbed network)", () => {
         { geocode: async () => null, reverseGeocode: async () => "", runOverpass: async () => [] },
       ),
     ).rejects.toThrow(InputError);
+  });
+});
+
+describe("geoapify", () => {
+  it("maps tag filters to Geoapify categories", () => {
+    expect(geoapifyCategories(web.targets)).toEqual(
+      expect.arrayContaining(["catering.restaurant", "catering.cafe", "commercial", "healthcare", "healthcare.pharmacy"]),
+    );
+    expect(geoapifyCategories([{ key: "shop", values: ["supermarket"] }])).toEqual(["commercial.supermarket"]);
+    expect(geoapifyCategories([{ key: "craft" }])).toEqual([]);
+  });
+
+  it("turns a feature with raw OSM tags into an element", () => {
+    const el = featureToElement(
+      { properties: { name: "Bean There", lat: 51.5, lon: -0.1, datasource: { raw: { osm_type: "n", osm_id: 42, amenity: "cafe", phone: "+44 1" } } } },
+      0,
+    )!;
+    expect(el).toMatchObject({ type: "node", id: 42, tags: { amenity: "cafe", phone: "+44 1", name: "Bean There" } });
+  });
+
+  it("falls back to Geoapify fields when raw tags are missing", () => {
+    const el = featureToElement(
+      { properties: { name: "Shop X", lat: 51.5, lon: -0.1, categories: ["commercial", "commercial.clothing"], website: "shopx.example", contact: { phone: "+44 2" } } },
+      3,
+    )!;
+    expect(el.id).toBe(-4);
+    expect(el.tags).toMatchObject({ amenity: "clothing", website: "shopx.example", phone: "+44 2" });
+    const lead = toLead(el, { lat: 51.5, lon: -0.1 }, 1000, web)!;
+    expect(lead.osmUrl).toContain("mlat=51.5");
+  });
+
+  it("calls the Places API with a circle filter and parses features", async () => {
+    let called = "";
+    const fake = (async (url: string) => {
+      called = url;
+      return new Response(JSON.stringify({ features: [{ properties: { name: "A", lat: 1, lon: 2, datasource: { raw: { amenity: "pub" } } } }] }));
+    }) as unknown as typeof fetch;
+    const out = await runGeoapify(web.targets, 1, 2, 1500, "k", fake);
+    expect(called).toContain("filter=circle%3A2.000000%2C1.000000%2C1500");
+    expect(out[0].tags?.name).toBe("A");
+  });
+
+  it("search uses Geoapify first and falls back to Overpass when it fails", async () => {
+    const used: string[] = [];
+    const deps = {
+      geocode: async () => ({ lat: 51.5246, lon: -0.0781, label: "X" }),
+      reverseGeocode: async () => "x",
+      runOverpass: async () => {
+        used.push("overpass");
+        return [{ type: "node" as const, id: 1, lat: 51.5246, lon: -0.0781, tags: { name: "From Overpass", amenity: "cafe" } }];
+      },
+      runGeoapify: async () => {
+        used.push("geoapify");
+        throw new Error("Geoapify HTTP 401");
+      },
+    };
+    const r = await searchLeads({ business: "web design", location: "Geoville", radiusKm: 0.5 }, deps);
+    expect(used).toEqual(["geoapify", "overpass"]);
+    expect(r.leads[0].name).toBe("From Overpass");
   });
 });

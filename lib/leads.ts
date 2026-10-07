@@ -117,7 +117,10 @@ export function toLead(
     distanceM,
     lat,
     lon,
-    osmUrl: `https://www.openstreetmap.org/${el.type}/${el.id}`,
+    osmUrl:
+      el.id > 0
+        ? `https://www.openstreetmap.org/${el.type}/${el.id}`
+        : `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=19/${lat}/${lon}`,
     score: Math.max(0, Math.min(100, score)),
     reasons,
   };

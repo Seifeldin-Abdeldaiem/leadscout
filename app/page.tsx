@@ -257,7 +257,7 @@ export default function Home() {
       )}
 
       <footer className="mt-12 border-t border-zinc-200 pt-4 text-xs text-zinc-500 dark:border-zinc-800">
-        Business data © <a className="underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> (ODbL).
+        Business data © <a className="underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> (ODbL), served via the Overpass API and <a className="underline" href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a>.
         Listings are public business information; follow your local marketing rules (e.g. UK PECR/GDPR) before contacting anyone. Your searches aren&apos;t stored.
       </footer>
     </main>

@@ -1,7 +1,8 @@
 import { buildOverpassQuery, geocode, reverseGeocode, runOverpass, type OsmElement, type Place } from "./osm";
 import { rankLeads, type Lead } from "./leads";
-import { matchProfile } from "./targets";
+import { matchProfile, type Profile } from "./targets";
 import { TtlCache } from "./limits";
+import { runGeoapify } from "./geoapify";
 
 export type SearchInput = {
   business: string;
@@ -59,8 +60,16 @@ export type Deps = {
   geocode: typeof geocode;
   reverseGeocode: typeof reverseGeocode;
   runOverpass: typeof runOverpass;
+  /** Optional hosted source, tried first when configured. */
+  runGeoapify?: (filters: Profile["targets"], lat: number, lon: number, radiusM: number) => Promise<OsmElement[]>;
 };
-const realDeps: Deps = { geocode, reverseGeocode, runOverpass };
+const geoKey = process.env.GEOAPIFY_API_KEY?.trim();
+const realDeps: Deps = {
+  geocode,
+  reverseGeocode,
+  runOverpass,
+  runGeoapify: geoKey ? (f, lat, lon, r) => runGeoapify(f, lat, lon, r, geoKey) : undefined,
+};
 
 export async function searchLeads(input: SearchInput, deps: Deps = realDeps): Promise<SearchResult> {
   let place: Place | null;
@@ -85,7 +94,15 @@ export async function searchLeads(input: SearchInput, deps: Deps = realDeps): Pr
     const key = `${profile.id}|${place!.lat.toFixed(3)}|${place!.lon.toFixed(3)}|${radiusM}`;
     const hit = osmCache.get(key);
     if (hit) return { elements: hit, cached: true };
-    const elements = await deps.runOverpass(buildOverpassQuery(profile.targets, place!.lat, place!.lon, radiusM));
+    let elements: OsmElement[] | undefined;
+    if (deps.runGeoapify) {
+      try {
+        elements = await deps.runGeoapify(profile.targets, place!.lat, place!.lon, radiusM);
+      } catch (e) {
+        console.error(JSON.stringify({ evt: "geoapify_error", err: (e as Error).message.slice(0, 120) }));
+      }
+    }
+    elements ??= await deps.runOverpass(buildOverpassQuery(profile.targets, place!.lat, place!.lon, radiusM));
     osmCache.set(key, elements);
     return { elements, cached: false };
   };

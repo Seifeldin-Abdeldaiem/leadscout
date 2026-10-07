@@ -23,7 +23,7 @@ A freelance web designer in Shoreditch wants local clients, but finding them mea
 | --- | --- |
 | Web UI + API | Next.js 16 (App Router, route handlers), TypeScript, Tailwind CSS |
 | Location lookup | Nominatim (OpenStreetMap) |
-| Business data | Overpass API (OpenStreetMap), multiple mirrors |
+| Business data | Geoapify Places API (OpenStreetMap data, free key) first; public Overpass mirrors as fallback |
 | Caching / rate limiting | In-memory (`lib/limits.ts`) |
 | Tests | Vitest (33 unit tests; the network is stubbed) |
 | CI | GitHub Actions: lint, typecheck, test, build |
@@ -59,7 +59,7 @@ Requires Node 22+.
 
 1. Push this repo to GitHub.
 2. Open `https://render.com/deploy?repo=https://github.com/<you>/leadscout`. For a private repo, first install Render's GitHub App on it.
-3. Click **Apply**. No secrets are needed. The first build takes about 5 minutes.
+3. Click **Apply**. Optionally (recommended) add `GEOAPIFY_API_KEY` — the free public Overpass servers are often overloaded. The first build takes about 5 minutes.
 4. If Render gives the service a different URL, update `APP_URL` in `render.yaml`, or in the dashboard.
 
 ## Security and privacy

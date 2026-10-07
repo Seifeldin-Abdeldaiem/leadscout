@@ -16,5 +16,7 @@ services:
         value: https://leadscout-k7q2.onrender.com
       - key: SEARCHES_PER_MINUTE
         value: "8"
+      - key: GEOAPIFY_API_KEY   # free key from myprojects.geoapify.com; entered in the dashboard
+        sync: false
       # FREE-TIER: caches and rate limits live in memory, so they reset when the
       # service sleeps and aren't shared across instances. Fine for one instance.
