@@ -1,14 +1,30 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { ChevronDown, Download, LoaderCircle, LocateFixed, Search } from "lucide-react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  RiBriefcase4Line,
+  RiCrosshair2Line,
+  RiDownload2Line,
+  RiGithubFill,
+  RiMapPin2Line,
+  RiSearchLine,
+} from "@remixicon/react";
 import type { Lead } from "@/lib/leads";
 import { leadsToCsv } from "@/lib/csv";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { LeadCard, LeadCardSkeleton } from "@/components/lead-card";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/tremor/Button";
+import { Card } from "@/components/tremor/Card";
+import { SelectNative } from "@/components/tremor/SelectNative";
+import { Switch } from "@/components/tremor/Switch";
+import { LeadRow } from "@/components/lead-row";
+import { cx } from "@/lib/tremor/cx";
+import { focusInput } from "@/lib/tremor/focusInput";
+
+const LeadMap = dynamic(() => import("@/components/lead-map"), {
+  ssr: false,
+  loading: () => <div className="h-full w-full animate-pulse bg-gray-100" />,
+});
 
 type Result = {
   place: { lat: number; lon: number; label: string };
@@ -18,15 +34,20 @@ type Result = {
   leads: Lead[];
 };
 
-const EXAMPLES = ["Web design agency", "Commercial cleaning", "Bookkeeping & payroll", "IT support", "Coffee bean supplier"];
-const MARQUEE = ["Cafés", "Salons", "Offices", "Clinics", "Pubs", "Gyms", "Hotels", "Shops", "Dentists", "Bakeries", "Florists", "Workshops"];
+const EXAMPLES = ["Web design agency", "Commercial cleaning", "Bookkeeping", "IT support", "Coffee supplier"];
 const REPO_URL = "https://github.com/Seifeldin-Abdeldaiem/leadscout";
 
-function GitHubIcon({ className }: { className?: string }) {
+const fieldClass = cx(
+  "h-9 w-full rounded-md border border-gray-300 bg-white pl-8 pr-3 text-sm text-gray-900 shadow-xs outline-hidden placeholder:text-gray-400",
+  focusInput,
+);
+
+function Kpi({ label, value }: { label: string; value: number | string }) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden className={className} fill="currentColor">
-      <path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.27 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z" />
-    </svg>
+    <div className="rounded-md border border-gray-200 bg-white px-3 py-2">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="font-mono text-lg font-semibold tabular-nums text-gray-900">{value}</p>
+    </div>
   );
 }
 
@@ -40,7 +61,19 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [onlyNoWebsite, setOnlyNoWebsite] = useState(false);
-  const resultsRef = useRef<HTMLElement>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const rowRefs = useRef(new Map<string, HTMLLIElement>());
+
+  const shown = useMemo(
+    () => (result ? result.leads.filter((l) => !onlyNoWebsite || !l.website) : []),
+    [result, onlyNoWebsite],
+  );
+  const centre = useMemo(() => (result ? { lat: result.place.lat, lon: result.place.lon } : null), [result]);
+
+  useEffect(() => {
+    if (selectedId) rowRefs.current.get(selectedId)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [selectedId]);
 
   function useMyLocation() {
     if (!navigator.geolocation) {
@@ -52,7 +85,7 @@ export default function Home() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-        setLocation("My current location");
+        setLocation("Current location");
         setLocating(false);
       },
       () => {
@@ -67,9 +100,8 @@ export default function Home() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setResult(null);
+    setSelectedId(null);
     setOnlyNoWebsite(false);
-    requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     try {
       const radius = Number(radiusKm);
       const res = await fetch("/api/leads", {
@@ -96,309 +128,235 @@ export default function Home() {
     URL.revokeObjectURL(a.href);
   }
 
-  const shown = result ? result.leads.filter((l) => !onlyNoWebsite || !l.website) : [];
-  const showResults = loading || !!result || !!error;
-
   return (
-    <div className="flex min-h-full flex-col">
-      {/* Header */}
-      <header className="border-b-2 border-border bg-secondary-background">
-        <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-4">
-          <a href="#" className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-base border-2 border-border bg-main text-lg font-bold shadow-[2px_2px_0_0_#000]">
-              L
-            </span>
-            <span className="text-xl font-heading tracking-tight">LeadScout</span>
+    <div className="flex h-dvh flex-col bg-gray-50">
+      {/* Top bar with search */}
+      <header className="z-10 border-b border-gray-200 bg-white">
+        <form onSubmit={search} className="flex flex-col gap-2 px-4 py-3 lg:flex-row lg:items-center lg:gap-3">
+          <div className="flex items-center justify-between lg:w-[200px] lg:shrink-0">
+            <Link href="/" className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-md bg-blue-600 text-white">
+                <RiMapPin2Line className="size-4" aria-hidden />
+              </span>
+              <span className="text-[15px] font-semibold tracking-tight">LeadScout</span>
+            </Link>
+            <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-900 lg:hidden" aria-label="Source on GitHub">
+              <RiGithubFill className="size-5" />
+            </a>
+          </div>
+
+          <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_140px_auto]">
+            <label className="relative col-span-2 sm:col-span-1">
+              <span className="sr-only">What does your business sell?</span>
+              <RiBriefcase4Line className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden />
+              <input
+                required
+                minLength={2}
+                maxLength={200}
+                value={business}
+                onChange={(e) => setBusiness(e.target.value)}
+                placeholder="What you sell, e.g. web design"
+                className={fieldClass}
+              />
+            </label>
+            <label className="relative col-span-2 sm:col-span-1">
+              <span className="sr-only">Your location</span>
+              <RiMapPin2Line className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden />
+              <input
+                required
+                minLength={2}
+                maxLength={200}
+                value={location}
+                onChange={(e) => {
+                  setLocation(e.target.value);
+                  setCoords(null);
+                }}
+                placeholder="Town, area or postcode"
+                className={cx(fieldClass, "pr-9")}
+              />
+              <button
+                type="button"
+                onClick={useMyLocation}
+                disabled={locating}
+                title="Use my current location"
+                aria-label="Use my current location"
+                className={cx(
+                  "absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700",
+                  locating && "animate-pulse text-blue-600",
+                )}
+              >
+                <RiCrosshair2Line className="size-4" />
+              </button>
+            </label>
+            <SelectNative value={radiusKm} onChange={(e) => setRadiusKm(e.target.value)} aria-label="Search radius" className="h-9">
+              {["0.5", "1", "2", "3", "5"].map((r) => (
+                <option key={r} value={r}>
+                  Within {r} km
+                </option>
+              ))}
+            </SelectNative>
+            <Button type="submit" isLoading={loading} loadingText="Searching" className="h-9 gap-1.5">
+              <RiSearchLine className="size-4" aria-hidden /> Find leads
+            </Button>
+          </div>
+
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 lg:flex"
+          >
+            <RiGithubFill className="size-4" aria-hidden /> Source
           </a>
-          <nav className="flex items-center gap-3">
-            <a href="#how" className="hidden font-bold underline-offset-4 hover:underline sm:block">
-              How it works
-            </a>
-            <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "neutral", size: "sm" })}>
-              <GitHubIcon /> Source
-            </a>
-          </nav>
-        </div>
+        </form>
       </header>
 
-      <main className="flex-1">
-        {/* Hero */}
-        <section className="border-b-2 border-border">
-          <div className="mx-auto w-full max-w-5xl px-4 pb-14 pt-12 sm:pt-16">
-            <p className="inline-block rounded-base border-2 border-border bg-accent-pink px-3 py-1 font-mono text-xs font-bold uppercase tracking-wider shadow-[2px_2px_0_0_#000]">
-              Free · No sign-up · Live map data
-            </p>
-            <h1 className="mt-6 max-w-4xl text-5xl leading-[1.02] tracking-tight sm:text-7xl">
-              Find clients on your{" "}
-              <span className="inline-block -rotate-1 rounded-base border-2 border-border bg-main px-3 shadow-shadow">
-                doorstep.
-              </span>
-            </h1>
-            <p className="mt-6 max-w-2xl text-lg sm:text-xl">
-              Say what you sell and where you are. LeadScout finds the local businesses most likely to buy from you,
-              scores them, and gives you their public contact details.
-            </p>
-
-            {/* Search */}
-            <form
-              onSubmit={search}
-              className="mt-10 rounded-base border-2 border-border bg-secondary-background p-5 shadow-lg-hard sm:p-6"
-            >
-              <div className="grid gap-4 sm:grid-cols-[1.3fr_1.3fr_0.6fr]">
-                <div className="grid gap-1.5">
-                  <Label htmlFor="business" className="font-bold">
-                    1. What do you sell?
-                  </Label>
-                  <Input
-                    id="business"
-                    required
-                    minLength={2}
-                    maxLength={200}
-                    value={business}
-                    onChange={(e) => setBusiness(e.target.value)}
-                    placeholder="e.g. Web design agency"
-                    className="h-12 text-base"
-                  />
-                </div>
-
-                <div className="grid gap-1.5">
-                  <Label htmlFor="location" className="font-bold">
-                    2. Where are you?
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="location"
-                      required
-                      minLength={2}
-                      maxLength={200}
-                      value={location}
-                      onChange={(e) => {
-                        setLocation(e.target.value);
-                        setCoords(null);
-                      }}
-                      placeholder="Town, area or postcode"
-                      className="h-12 text-base"
-                    />
-                    <Button
-                      type="button"
-                      variant="neutral"
-                      className="size-12 shrink-0 px-0"
-                      onClick={useMyLocation}
-                      disabled={locating}
-                      title="Use my current location"
-                      aria-label="Use my current location"
-                    >
-                      {locating ? <LoaderCircle className="animate-spin" /> : <LocateFixed />}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="grid gap-1.5">
-                  <Label htmlFor="radius" className="font-bold">
-                    3. How far?
-                  </Label>
-                  <div className="relative">
-                    <select
-                      id="radius"
-                      value={radiusKm}
-                      onChange={(e) => setRadiusKm(e.target.value)}
-                      className="h-12 w-full appearance-none rounded-base border-2 border-border bg-secondary-background px-3 pr-9 text-base font-bold focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
-                    >
-                      {["0.5", "1", "2", "3", "5"].map((r) => (
-                        <option key={r} value={r}>
-                          {r} km
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2" aria-hidden />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-col-reverse gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs font-bold uppercase">Try →</span>
-                  {EXAMPLES.map((ex) => (
-                    <button
-                      key={ex}
-                      type="button"
-                      onClick={() => setBusiness(ex)}
-                      className="rounded-base border-2 border-border bg-background px-2.5 py-0.5 text-sm font-bold transition-colors hover:bg-main"
-                    >
-                      {ex}
-                    </button>
-                  ))}
-                </div>
-                <Button type="submit" disabled={loading} size="lg" className="h-12 px-8 text-base font-bold">
-                  {loading ? <LoaderCircle className="animate-spin" /> : <Search />}
-                  {loading ? "Searching…" : "Find leads"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </section>
-
-        {/* Marquee */}
-        <div className="overflow-hidden border-b-2 border-border bg-foreground py-3 text-background" aria-hidden>
-          <div className="flex w-max animate-marquee gap-8 whitespace-nowrap font-mono text-sm font-bold uppercase tracking-widest">
-            {[...MARQUEE, ...MARQUEE].map((m, i) => (
-              <span key={i} className="flex items-center gap-8">
-                {m} <span className="text-main">✦</span>
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Results */}
-        <section ref={resultsRef} className={cn("mx-auto w-full max-w-5xl scroll-mt-4 px-4", showResults && "py-12")}>
+      {/* Workspace: list + map */}
+      <main className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[260px_1fr] md:grid-cols-[400px_1fr] md:grid-rows-1">
+        <aside className="order-2 flex min-h-0 min-w-0 flex-col border-gray-200 bg-white md:order-1 md:border-r">
           {error && (
-            <div role="alert" className="rounded-base border-2 border-border bg-accent-pink px-4 py-3 font-bold shadow-shadow">
+            <div role="alert" className="m-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
               {error}
             </div>
           )}
 
-          {loading && (
-            <div className="grid gap-4" aria-busy="true" aria-label="Loading leads">
-              <p className="font-mono text-sm font-bold uppercase">Scanning local businesses…</p>
-              {Array.from({ length: 3 }).map((_, i) => (
-                <LeadCardSkeleton key={i} />
-              ))}
+          {!result && !loading && (
+            <div className="overflow-y-auto p-5">
+              <h1 className="text-xl font-semibold tracking-tight text-gray-900">Find local prospects</h1>
+              <p className="mt-2 text-sm leading-relaxed text-gray-600">
+                Enter what your business sells and where you&apos;re based. LeadScout finds nearby businesses likely to
+                buy from you, scores each one, and shows their public contact details on the map.
+              </p>
+              <p className="mt-5 text-xs font-medium uppercase tracking-wide text-gray-500">Try an example</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {EXAMPLES.map((ex) => (
+                  <button
+                    key={ex}
+                    type="button"
+                    onClick={() => setBusiness(ex)}
+                    className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                  >
+                    {ex}
+                  </button>
+                ))}
+              </div>
+              <Card className="mt-6 p-4">
+                <p className="text-sm font-medium text-gray-900">How leads are scored</p>
+                <ul className="mt-2 space-y-1.5 text-sm text-gray-600">
+                  <li>• Matches your business to the types of local business that typically buy it</li>
+                  <li>• Rewards closeness and available phone, email and website</li>
+                  <li>• Flags buying signals, such as a café with no website for a web designer</li>
+                  <li>• Ranks chains lower, since they usually buy centrally</li>
+                </ul>
+              </Card>
             </div>
           )}
 
-          {result && (
+          {loading && (
+            <ul className="overflow-hidden" aria-busy="true" aria-label="Loading leads">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <li key={i} className="flex gap-3 border-b border-gray-100 px-4 py-3">
+                  <div className="h-6 w-10 animate-pulse rounded-md bg-gray-100" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3.5 w-2/3 animate-pulse rounded bg-gray-100" />
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-gray-100" />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {result && !loading && (
             <>
-              <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-                <div>
-                  <h2 className="text-3xl tracking-tight sm:text-4xl">
-                    {result.leads.length} leads within {result.radiusKm} km
-                  </h2>
-                  <p className="mt-2">
-                    Near <b>{result.place.label.split(",").slice(0, 2).join(",")}</b> · matched as{" "}
-                    <span className="rounded-base border-2 border-border bg-main px-1.5 font-bold">{result.profile.label}</span>
-                  </p>
-                  {result.requestedRadiusKm && (
-                    <p className="mt-2 text-sm font-bold">
-                      ⚠ The map servers were too busy for a {result.requestedRadiusKm} km search, so these results cover{" "}
-                      {result.radiusKm} km.
+              <div className="border-b border-gray-200 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {shown.length} leads · {result.profile.label}
                     </p>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  {result.profile.id === "web" && (
-                    <label className="flex cursor-pointer items-center gap-2 font-bold">
-                      <input
-                        type="checkbox"
-                        className="size-5 accent-black"
-                        checked={onlyNoWebsite}
-                        onChange={(e) => setOnlyNoWebsite(e.target.checked)}
-                      />
-                      No website only
-                    </label>
-                  )}
-                  <Button variant="neutral" onClick={() => downloadCsv(shown)} disabled={!shown.length}>
-                    <Download /> Export CSV
+                    <p className="truncate text-xs text-gray-500">
+                      Within {result.radiusKm} km of {result.place.label.split(",").slice(0, 2).join(",")}
+                    </p>
+                  </div>
+                  <Button variant="secondary" className="h-8 shrink-0 gap-1 px-2.5 text-xs" onClick={() => downloadCsv(shown)} disabled={!shown.length}>
+                    <RiDownload2Line className="size-3.5" aria-hidden /> CSV
                   </Button>
                 </div>
+                {result.requestedRadiusKm && (
+                  <p className="mt-2 text-xs text-amber-700">
+                    Map servers were busy, so this covers {result.radiusKm} km instead of {result.requestedRadiusKm} km.
+                  </p>
+                )}
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <Kpi label="Leads" value={result.leads.length} />
+                  <Kpi label="With phone" value={result.leads.filter((l) => l.phone).length} />
+                  <Kpi label="No website" value={result.leads.filter((l) => !l.website).length} />
+                </div>
+                {result.profile.id === "web" && (
+                  <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+                    <Switch checked={onlyNoWebsite} onCheckedChange={setOnlyNoWebsite} size="small" />
+                    Only businesses without a website
+                  </label>
+                )}
               </div>
 
-              {result.leads.length > 0 && (
-                <div className="mb-8 grid grid-cols-3 gap-3 sm:gap-4">
-                  {[
-                    { label: "Leads found", value: result.leads.length, bg: "bg-accent-green" },
-                    { label: "With phone", value: result.leads.filter((l) => l.phone).length, bg: "bg-accent-blue" },
-                    { label: "Top score", value: Math.max(...result.leads.map((l) => l.score)), bg: "bg-accent-pink" },
-                  ].map((s) => (
-                    <div key={s.label} className={cn("rounded-base border-2 border-border p-3 shadow-shadow sm:p-4", s.bg)}>
-                      <div className="font-mono text-3xl font-bold tabular-nums sm:text-4xl">{s.value}</div>
-                      <div className="text-xs font-bold uppercase sm:text-sm">{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
               {shown.length === 0 ? (
-                <p className="font-bold">No matching businesses found. Try a bigger radius or a nearby town centre.</p>
+                <p className="p-4 text-sm text-gray-600">No matching businesses. Try a larger radius or a nearby town centre.</p>
               ) : (
-                <ol className="grid gap-4">
-                  {shown.map((l, i) => (
-                    <li key={l.id}>
-                      <LeadCard lead={l} rank={i + 1} />
-                    </li>
+                <ol className="min-h-0 flex-1 overflow-y-auto">
+                  {shown.map((l) => (
+                    <LeadRow
+                      key={l.id}
+                      ref={(node) => {
+                        if (node) rowRefs.current.set(l.id, node);
+                        else rowRefs.current.delete(l.id);
+                      }}
+                      lead={l}
+                      selected={selectedId === l.id}
+                      onSelect={() => setSelectedId(selectedId === l.id ? null : l.id)}
+                      onHover={(h) => setHoveredId(h ? l.id : null)}
+                    />
                   ))}
                 </ol>
               )}
             </>
           )}
-        </section>
 
-        {/* How it works */}
-        <section id="how" className="border-t-2 border-border bg-secondary-background">
-          <div className="mx-auto w-full max-w-5xl px-4 py-16">
-            <h2 className="text-4xl tracking-tight">How it works</h2>
-            <div className="mt-8 grid gap-5 sm:grid-cols-3">
-              {[
-                {
-                  n: "01",
-                  bg: "bg-main",
-                  title: "Understands your buyers",
-                  body: "Describe your business in plain English. LeadScout maps it to the local businesses that typically need it: cafés for a web designer, offices for a cleaner.",
-                },
-                {
-                  n: "02",
-                  bg: "bg-accent-green",
-                  title: "Scans the map",
-                  body: "It searches OpenStreetMap business listings inside your radius and pulls each one's public phone, email and website.",
-                },
-                {
-                  n: "03",
-                  bg: "bg-accent-pink",
-                  title: "Ranks the prospects",
-                  body: "Each lead gets a 0–100 score from distance, contact details and buying signals, like a café with no website, with the reasons shown.",
-                },
-              ].map((step) => (
-                <div key={step.n} className="rounded-base border-2 border-border bg-background p-5 shadow-shadow">
-                  <span className={cn("inline-block rounded-base border-2 border-border px-2 font-mono text-lg font-bold", step.bg)}>
-                    {step.n}
-                  </span>
-                  <h3 className="mt-4 text-xl">{step.title}</h3>
-                  <p className="mt-2">{step.body}</p>
-                </div>
-              ))}
-            </div>
-            <p className="mt-8 max-w-3xl text-sm">
-              Your searches aren&apos;t stored. Listings are public business information; follow your local marketing
-              rules (e.g. UK PECR / GDPR) before contacting anyone.
-            </p>
-          </div>
-        </section>
-      </main>
-
-      <footer className="border-t-2 border-border bg-foreground text-background">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-6 text-sm sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            Built by <b>Seifeldin Abdeldaiem</b> ·{" "}
-            <a className="underline underline-offset-2 hover:text-main" href={REPO_URL} target="_blank" rel="noopener noreferrer">
-              source on GitHub
-            </a>
-          </p>
-          <p className="text-background/70">
-            Data ©{" "}
-            <a className="underline underline-offset-2 hover:text-main" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">
+          <footer className="mt-auto border-t border-gray-200 px-4 py-2.5 text-[11px] leading-relaxed text-gray-500">
+            Built by Seifeldin Abdeldaiem ·{" "}
+            <a className="underline hover:text-gray-800" href={REPO_URL} target="_blank" rel="noopener noreferrer">
+              source
+            </a>{" "}
+            · Data ©{" "}
+            <a className="underline hover:text-gray-800" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">
               OpenStreetMap
             </a>{" "}
             via{" "}
-            <a className="underline underline-offset-2 hover:text-main" href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">
+            <a className="underline hover:text-gray-800" href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">
               Geoapify
             </a>
-            . Design based on{" "}
-            <a className="underline underline-offset-2 hover:text-main" href="https://github.com/ekmas/neobrutalism-components" target="_blank" rel="noopener noreferrer">
-              neobrutalism-components
-            </a>
-            .
-          </p>
-        </div>
-      </footer>
+            . Searches aren&apos;t stored; follow UK PECR/GDPR before contacting anyone.
+          </footer>
+        </aside>
+
+        <section className="relative order-1 min-h-0 md:order-2">
+          <LeadMap
+            centre={centre}
+            radiusKm={result?.radiusKm ?? null}
+            leads={shown}
+            selectedId={selectedId}
+            hoveredId={hoveredId}
+            onSelect={setSelectedId}
+          />
+          {result && (
+            <div className="pointer-events-none absolute left-3 top-3 z-[400] rounded-md border border-gray-200 bg-white/95 px-2.5 py-1.5 text-[11px] text-gray-600 shadow-xs">
+              <span className="mr-2 inline-flex items-center gap-1"><span className="size-2 rounded-full bg-blue-600" /> 80+</span>
+              <span className="mr-2 inline-flex items-center gap-1"><span className="size-2 rounded-full bg-blue-400" /> 60–79</span>
+              <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-gray-400" /> &lt;60</span>
+            </div>
+          )}
+        </section>
+      </main>
     </div>
   );
 }

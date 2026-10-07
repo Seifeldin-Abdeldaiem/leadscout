@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Space_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const sans = Space_Grotesk({
-  variable: "--font-sans",
+const sans = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
-const mono = Space_Mono({
-  variable: "--font-mono",
-  weight: ["400", "700"],
+const mono = JetBrains_Mono({
+  variable: "--font-jetbrains",
   subsets: ["latin"],
 });
 
@@ -30,7 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${sans.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="h-full font-sans">{children}</body>
     </html>
   );
 }

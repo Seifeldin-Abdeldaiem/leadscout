@@ -1,96 +1,31 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 
 /*
- * Theme: neo-brutalism, adapted from neobrutalism-components
- * (https://github.com/ekmas/neobrutalism-components, MIT, © Samuel Breznjak).
- * Hard black borders, offset shadows, flat bold colour.
+ * UI components from Tremor (https://github.com/tremorlabs/tremor, Apache-2.0),
+ * map from Leaflet (BSD-2-Clause). Neutral grays + one blue accent.
  */
-:root {
-  --border-radius: 6px;
-  --box-shadow-x: 4px;
-  --box-shadow-y: 4px;
-  --reverse-box-shadow-x: -4px;
-  --reverse-box-shadow-y: -4px;
-
-  --heading-font-weight: 800;
-  --base-font-weight: 500;
-
-  --background: #fff8e7; /* warm paper */
-  --secondary-background: #ffffff;
-  --foreground: #000000;
-  --main-foreground: #000000;
-
-  --main: #ffd23f; /* signal yellow */
-  --accent-green: #3fd18c;
-  --accent-pink: #ff90e8;
-  --accent-blue: #74b9ff;
-  --border: #000000;
-  --ring: #000000;
-  --overlay: rgb(0 0 0 / 0.8);
-
-  --shadow: var(--box-shadow-x) var(--box-shadow-y) 0px 0px var(--border);
-}
-
-@theme inline {
-  --color-main: var(--main);
-  --color-background: var(--background);
-  --color-secondary-background: var(--secondary-background);
-  --color-foreground: var(--foreground);
-  --color-main-foreground: var(--main-foreground);
-  --color-border: var(--border);
-  --color-overlay: var(--overlay);
-  --color-ring: var(--ring);
-  --color-accent-green: var(--accent-green);
-  --color-accent-pink: var(--accent-pink);
-  --color-accent-blue: var(--accent-blue);
-
-  --spacing-boxShadowX: var(--box-shadow-x);
-  --spacing-boxShadowY: var(--box-shadow-y);
-  --spacing-reverseBoxShadowX: var(--reverse-box-shadow-x);
-  --spacing-reverseBoxShadowY: var(--reverse-box-shadow-y);
-
-  --radius-base: var(--border-radius);
-
-  --shadow-shadow: var(--shadow);
-  --shadow-lg-hard: 8px 8px 0px 0px var(--border);
-
-  --font-weight-base: var(--base-font-weight);
-  --font-weight-heading: var(--heading-font-weight);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
-
-  --animate-marquee: marquee 30s linear infinite;
-  @keyframes marquee {
-    0% {
-      transform: translateX(0%);
-    }
-    100% {
-      transform: translateX(-50%);
-    }
-  }
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
 @layer base {
-  html {
-    @apply bg-background;
-  }
+  html,
   body {
-    @apply bg-background font-sans font-base text-foreground;
-  }
-  h1,
-  h2,
-  h3,
-  h4 {
-    @apply font-heading;
-  }
-  ::selection {
-    background: var(--main);
+    @apply h-full bg-white text-gray-900 antialiased;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .animate-marquee {
-    animation: none;
-  }
+/* Leaflet: keep the map under the sticky header and use our font in popups */
+.leaflet-container {
+  font-family: var(--font-sans);
+  z-index: 0;
+}
+.leaflet-popup-content {
+  margin: 10px 12px;
+}
+
+/* Calm, low-contrast basemap so lead markers carry the colour */
+.leaflet-tile-pane {
+  filter: grayscale(1) contrast(0.85) brightness(1.08);
 }
