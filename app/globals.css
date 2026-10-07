@@ -1,6 +1,13 @@
 @import "tailwindcss";
 
 /*
+ * LeadScout is a light-only design. Tremor's components ship dark-mode styles that
+ * Tailwind would otherwise switch on from the visitor's system setting, turning
+ * single boxes dark on a light page. Tie "dark:" to a .dark class we never set.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
  * UI components from Tremor (https://github.com/tremorlabs/tremor, Apache-2.0),
  * map from Leaflet (BSD-2-Clause). Neutral grays + one blue accent.
  */
@@ -13,6 +20,7 @@
   html,
   body {
     @apply h-full bg-white text-gray-900 antialiased;
+    color-scheme: light;
   }
 }
 
